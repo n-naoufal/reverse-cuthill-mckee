@@ -1,89 +1,128 @@
-function [ mask, perm, num_node_ls ] = rcm ( root, adj_num, adj_row, adj,mask, node_num )
+function [ mask, perm, num_node_ls ] = rcm ( root, num_adj, xadj, adj, ...
+  mask, num_node )
 
-
-%  S'assurer du bon choix de root.
-if ( root < 1 || node_num < root )
+%  Make sure num_node is legal.
+%
+  if ( num_node < 1 )
+    fprintf ( 1, '\n' );
+    fprintf ( 1, 'RCM - Fatal error!\n' );
+    fprintf ( 1, '  Illegal input value of num_node = %d\n', num_node );
+    fprintf ( 1, '  Acceptable values must be positive.\n' );
     error ( 'RCM - Fatal error!' );
-end
+  end
+%
+%  Make sure ROOT is legal.
+%
+  if ( root < 1 || num_node < root )
+    fprintf ( 1, '\n' );
+    fprintf ( 1, 'RCM - Fatal error!\n' );
+    fprintf ( 1, '  Illegal input value of ROOT = %d\n', root );
+    fprintf ( 1, '  Acceptable values are between 1 and %d\n', num_node );
+    error ( 'RCM - Fatal error!' );
+  end
+%
+%  Find the degrees of the nodes in the component specified by MASK and ROOT.
+%
+  [ deg, num_node_ls, perm ] = degree ( root, num_adj, xadj, adj, mask, ...
+    num_node );
 
-% Trouver le degré des noeuds spécifiés par mask et root
-[ Deg, num_node_ls, perm ] = rcmdegree ( root, adj_num, adj_row, adj, mask,node_num );
+  mask(root) = 0;
 
-mask(root) = 0;
-
-% Le composant connecté n'existe pas
-if ( num_node_ls < 1 )
+  if ( num_node_ls < 1 )
+    fprintf ( 1, '\n' );
+    fprintf ( 1, 'RCM - Fatal error!\n' );
+    fprintf ( 1, '  Inexplicable component size num_node_ls = %d\n', num_node_ls );
+    error ( 'RCM - Fatal error!' );
+  end
+%
+%  If the connected component is a singleton, there is no reordering to do.
+%
+  if ( num_node_ls == 1 )
     return
-end
-% Si le composant connecté du graphe est un singleton. aucun réordonnement
-% n'est appliqué.
-if ( num_node_ls == 1 )
-    return
-end
+  end
+%
+%  Carry out the reordering procedure.
+%
+%  LBEGIN and LVLEND point to the beginning and
+%  the end of the current ls respectively.
+%
+  lvlend = 0;
+  lnbr = 1;
 
-%  Commencer le réordonnement
+  while ( lvlend < lnbr )
 
-%  LBEGIN et LVLEND pointent le début et la fin du niveau de structure actuelle 
-lvlend = 0;
-lnbr = 1;
-  
-while ( lvlend < lnbr )
-    
     lbegin = lvlend + 1;
     lvlend = lnbr;
 
     for i = lbegin : lvlend
-        
-%  Pour chaque noeud dans le niveau actuel
+%
+%  For each node in the current ls...
+%
       node = perm(i);
-      jstart = adj_row(node);
-      jstop = adj_row(node+1) - 1;
-      
-%  Trouver les voisins non-numérotés de "node"
-%  FNBR et LNBR pointent au premier et dernier voisin du noeud actuel dans perm
+      jstrt = xadj(node);
+      jstop = xadj(node+1) - 1;
+%
+%  Find the unnumbered neighbors of NODE.
+%
+%  FNBR and LNBR point to the first and last neighbors
+%  of the current node in PERM.
+%
       fnbr = lnbr + 1;
-      
-      for j = jstart : jstop
+
+      for j = jstrt : jstop
+
         nbr = adj(j);
+
         if ( mask(nbr) ~= 0 )
           lnbr = lnbr + 1;
           mask(nbr) = 0;
           perm(lnbr) = nbr;
         end
+
       end
-      
-%  Pas de voisins ! on passe au noeud suivant dans la structure
+%
+%  If no neighbors, skip to next node in this ls.
+%
       if ( lnbr <= fnbr )
         continue
       end
-
-% Ordonner en degré croissant les voisins de "node"
+%
+%  Sort the neighbors of NODE in increasing order by degree.
+%  Linear insertion is used.
+%
       k = fnbr;
+
       while ( k < lnbr )
+
         l = k;
         k = k + 1;
         nbr = perm(k);
-        
-        while ( fnbr <= l )
+
+        while ( fnbr < l )
+
           lperm = perm(l);
-          if ( Deg(lperm) <= Deg(nbr) )
+
+          if ( deg(lperm) <= deg(nbr) )
             break
           end
+
           perm(l+1) = lperm;
           l = l-1;
+
         end
-        
+
         perm(l+1) = nbr;
+
       end
 
     end
 
   end
-
-%  On a finalement l'ordre de Cuthill-McKee 
-%  Inversons cet ordre pour avoir le RCM
-%  b(1:num_node_ls) = perm(num_node_ls:-1:1);
-%  perm(1:num_node_ls) = b(1:num_node_ls);
-  
+%
+%  We now have the Cuthill-McKee ordering.  
+%  Reverse it to get the Reverse Cuthill-McKee ordering.
+%
+  b(1:num_node_ls) = perm(num_node_ls:-1:1);
+  perm(1:num_node_ls) = b(1:num_node_ls);
   return
 end
